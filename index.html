@@ -23,6 +23,69 @@
         .container {
             padding: 20px;
         }
+        .add-product {
+    margin-bottom: 20px;
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background-color: #fff;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    max-width: 600px;
+    margin: 20px auto; /* Center the form */
+}
+
+.add-product h2 {
+    margin-top: 0;
+    font-size: 1.5em;
+    color: #333;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.add-product label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #555;
+}
+
+.add-product input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 1em;
+    box-sizing: border-box;
+}
+
+.add-product input:focus {
+    border-color: #6200ea;
+    outline: none;
+    box-shadow: 0 0 5px rgba(98, 0, 234, 0.3);
+}
+
+.add-product .btn {
+    display: block;
+    width: 100%;
+    padding: 10px 15px;
+    background-color: #6200ea;
+    color: white;
+    font-size: 1em;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    text-align: center;
+    transition: background-color 0.3s ease;
+}
+
+.add-product .btn:hover {
+    background-color: #3700b3;
+}
+
+.add-product .btn:active {
+    background-color: #23036a;
+}
         .product {
             margin-bottom: 20px;
             border: 1px solid #ddd;
@@ -61,6 +124,14 @@
         }
         .unavailable {
             color: red;
+            font-weight: bold;
+        }
+        .used {
+            color: red;
+            font-weight: bold;
+        }
+        .unused {
+            color: green;
             font-weight: bold;
         }
     </style>
@@ -122,6 +193,7 @@
                         <p>Stock: ${product.stock} ${isAvailable ? '' : '<span class="unavailable">(Unavailable)</span>'}</p>
                         <p>Price: ${product.price} Refer Points</p>
                         <button class="btn edit" onclick="editProduct('${productId}')">Edit</button>
+                        <button class="btn" onclick="manageRewardCodes('${productId}')">Manage Reward Codes</button>
                     `;
 
                     productsContainer.appendChild(productElement);
@@ -153,8 +225,7 @@
                 loadProducts();
             });
         }
-
-        // Edit Product
+                // Edit Product
         function editProduct(productId) {
             db.ref(`products/${productId}`).once('value').then(snapshot => {
                 const product = snapshot.val();
@@ -191,6 +262,62 @@
                         });
                     }
                 });
+            });
+        }
+
+
+        // Manage Reward Codes
+        function manageRewardCodes(productId) {
+            db.ref(`products/${productId}/rewardCodes`).once('value').then(snapshot => {
+                const codes = snapshot.val() || {};
+                let codesList = Object.keys(codes).map(code => `
+                    <li>
+                        Code: ${code} - 
+                        <span class="${codes[code].used ? 'used' : 'unused'}">
+                            ${codes[code].used ? 'Used' : 'Unused'}
+                        </span>
+                        <button class="btn" onclick="deleteCode('${productId}', '${code}')">Delete</button>
+                    </li>
+                `).join('');
+
+                Swal.fire({
+                    title: 'Manage Reward Codes',
+                    html: `
+                        <ul>${codesList}</ul>
+                        <label>Redeem Code:</label>
+                        <input type="text" id="new-redeem-code" placeholder="Code" class="swal2-input" />
+                        <label>Code Pin:</label>
+                        <input type="text" id="new-code-pin" placeholder="Pin" class="swal2-input" />
+                    `,
+                    confirmButtonText: 'Add Code',
+                    preConfirm: () => {
+                        const redeemCode = document.getElementById('new-redeem-code').value.trim();
+                        const codePin = document.getElementById('new-code-pin').value.trim();
+                        if (!redeemCode || !codePin) {
+                            Swal.showValidationMessage('Both fields are required.');
+                        }
+                        return { redeemCode, codePin };
+                    }
+                }).then(result => {
+                    if (result.isConfirmed) {
+                        const { redeemCode, codePin } = result.value;
+                        db.ref(`products/${productId}/rewardCodes/${redeemCode}`).set({
+                            pin: codePin,
+                            used: false
+                        }).then(() => {
+                            Swal.fire('Success', 'Code added successfully.', 'success');
+                            manageRewardCodes(productId);
+                        });
+                    }
+                });
+            });
+        }
+
+        // Delete Code
+        function deleteCode(productId, code) {
+            db.ref(`products/${productId}/rewardCodes/${code}`).remove().then(() => {
+                Swal.fire('Success', 'Code deleted successfully.', 'success');
+                manageRewardCodes(productId);
             });
         }
 
